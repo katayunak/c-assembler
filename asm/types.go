@@ -10,7 +10,7 @@ type Item struct {
 	ID       string `json:"id"`
 	Text     string `json:"text"`
 	Source   string `json:"source,omitempty"`
-	Critical bool   `json:"critical,omitempty"` // never drop (used once trimming exists)
+	Critical bool   `json:"critical,omitempty"` // never drop
 }
 
 // Tool is one tool the model may call.
@@ -18,13 +18,15 @@ type Tool struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Schema      json.RawMessage `json:"input_schema,omitempty"`
+	Critical    bool            `json:"critical,omitempty"`
 }
 
 // Turn is one past message.
 type Turn struct {
-	ID   string `json:"id"`
-	Role string `json:"role"` // "user" or "assistant"
-	Text string `json:"text"`
+	ID       string `json:"id"`
+	Role     string `json:"role"` // "user" or "assistant"
+	Text     string `json:"text"`
+	Critical bool   `json:"critical,omitempty"` // e.g. a key decision
 }
 
 // User is the current request.
@@ -53,6 +55,16 @@ type Config struct {
 	ReservedOutput int     `json:"reserved_output"`
 	SafetyMargin   int     `json:"safety_margin"`
 	CharsPerToken  float64 `json:"chars_per_token,omitempty"` // estimator ratio; 0 means 3.5
+
+	LayerBudgets map[string]int `json:"layer_budgets,omitempty"` // optional token cap per layer, tags included
+	KeepTurns    int            `json:"keep_turns,omitempty"`    // last turns never dropped; 0 means 2
+}
+
+func (c Config) keepTurns() int {
+	if c.KeepTurns > 0 {
+		return c.KeepTurns
+	}
+	return 2
 }
 
 // Available is the input token budget.
@@ -93,7 +105,7 @@ type Manifest struct {
 	TotalTokens    int         `json:"total_tokens"`
 	AvailableInput int         `json:"available_input_tokens"`
 	ReservedOutput int         `json:"reserved_output_tokens"`
-	OverBudget     bool        `json:"over_budget"`
+	Status         string      `json:"status"` // "ok", "trimmed" or "overflow"
 	Items          []ItemRef   `json:"items"`
 	Missing        []string    `json:"missing,omitempty"`
 	Warnings       []string    `json:"warnings,omitempty"`
@@ -113,4 +125,6 @@ type ItemRef struct {
 	Source   string `json:"source,omitempty"`
 	Critical bool   `json:"critical,omitempty"`
 	Tokens   int    `json:"tokens"`
+	Action   string `json:"action"` // "included" or "dropped"
+	Reason   string `json:"reason,omitempty"`
 }

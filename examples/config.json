@@ -4,5 +4,7 @@
   "context_window": 1000000,
   "reserved_output": 16000,
   "safety_margin": 2000,
-  "chars_per_token": 3.5
+  "chars_per_token": 3.5,
+  "layer_budgets": {"retrieved_knowledge": 200000, "conversation_history": 100000},
+  "keep_turns": 2
 }
