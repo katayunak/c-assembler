@@ -1,0 +1,42 @@
+<system_instructions>
+[sys-role]
+You are a coding helper for the Acme API team.
+
+[sys-rules]
+Answer only from the given context. If you are not sure, say so. Never share API keys.
+</system_instructions>
+
+<state_and_memory>
+[mem-style] profile
+The user likes short answers with Go examples.
+
+[mem-db] decisions/db.md
+Decision (2026-09-01): the team uses PostgreSQL 17, not MySQL.
+</state_and_memory>
+
+<retrieved_knowledge>
+[kb-retry] docs/errors.md#retry
+Retry 429 and 5xx errors with exponential backoff, at most 3 tries. Honor the Retry-After header.
+</retrieved_knowledge>
+
+<tool_definitions>
+name: search_docs
+description: Search the Acme API docs.
+input_schema: {"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}
+</tool_definitions>
+
+<conversation_history>
+user: How do I list orders?
+
+assistant: Call GET /v1/orders with a bearer token.
+</conversation_history>
+
+<current_user_input>
+params:
+- language: go
+
+attachments:
+- client.go
+
+How should my Go client handle 429 errors?
+</current_user_input>

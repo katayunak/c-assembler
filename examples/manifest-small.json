@@ -1,0 +1,127 @@
+{
+  "config_version": "1",
+  "model": "claude-opus-5-5",
+  "tokenizer": "estimate (3.5 chars/token)",
+  "estimated": true,
+  "layers": [
+    {
+      "name": "system_instructions",
+      "items": 2,
+      "tokens": 58
+    },
+    {
+      "name": "state_and_memory",
+      "items": 2,
+      "tokens": 56
+    },
+    {
+      "name": "retrieved_knowledge",
+      "items": 1,
+      "tokens": 50
+    },
+    {
+      "name": "tool_definitions",
+      "items": 1,
+      "tokens": 54
+    },
+    {
+      "name": "conversation_history",
+      "items": 2,
+      "tokens": 37
+    },
+    {
+      "name": "current_user_input",
+      "items": 1,
+      "tokens": 39
+    }
+  ],
+  "total_tokens": 294,
+  "available_input_tokens": 320,
+  "reserved_output_tokens": 200,
+  "status": "trimmed",
+  "items": [
+    {
+      "id": "sys-role",
+      "layer": "system_instructions",
+      "critical": true,
+      "tokens": 17,
+      "action": "included"
+    },
+    {
+      "id": "sys-rules",
+      "layer": "system_instructions",
+      "critical": true,
+      "tokens": 28,
+      "action": "included"
+    },
+    {
+      "id": "mem-style",
+      "layer": "state_and_memory",
+      "source": "profile",
+      "tokens": 19,
+      "action": "included"
+    },
+    {
+      "id": "mem-db",
+      "layer": "state_and_memory",
+      "source": "decisions/db.md",
+      "critical": true,
+      "tokens": 25,
+      "action": "included"
+    },
+    {
+      "id": "kb-retry",
+      "layer": "retrieved_knowledge",
+      "source": "docs/errors.md#retry",
+      "tokens": 37,
+      "action": "included"
+    },
+    {
+      "id": "kb-auth",
+      "layer": "retrieved_knowledge",
+      "source": "docs/auth.md",
+      "tokens": 25,
+      "action": "dropped",
+      "reason": "low rank (0 shared words)"
+    },
+    {
+      "id": "kb-forum",
+      "layer": "retrieved_knowledge",
+      "source": "web/forum-post",
+      "tokens": 39,
+      "action": "dropped",
+      "reason": "low rank (0 shared words)"
+    },
+    {
+      "id": "search_docs",
+      "layer": "tool_definitions",
+      "tokens": 43,
+      "action": "included"
+    },
+    {
+      "id": "h1",
+      "layer": "conversation_history",
+      "tokens": 8,
+      "action": "included"
+    },
+    {
+      "id": "h2",
+      "layer": "conversation_history",
+      "tokens": 15,
+      "action": "included"
+    },
+    {
+      "id": "user",
+      "layer": "current_user_input",
+      "source": "client.go",
+      "critical": true,
+      "tokens": 27,
+      "action": "included"
+    }
+  ],
+  "warnings": [
+    "token counts are estimated, not exact"
+  ],
+  "input_hash": "sha256:e9434057049d9cdb",
+  "config_hash": "sha256:7e410791844997e0"
+}

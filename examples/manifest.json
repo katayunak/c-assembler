@@ -38,77 +38,88 @@
   "total_tokens": 361,
   "available_input_tokens": 982000,
   "reserved_output_tokens": 16000,
-  "over_budget": false,
+  "status": "ok",
   "items": [
     {
       "id": "sys-role",
       "layer": "system_instructions",
       "critical": true,
-      "tokens": 17
+      "tokens": 17,
+      "action": "included"
     },
     {
       "id": "sys-rules",
       "layer": "system_instructions",
       "critical": true,
-      "tokens": 28
+      "tokens": 28,
+      "action": "included"
     },
     {
       "id": "mem-style",
       "layer": "state_and_memory",
       "source": "profile",
-      "tokens": 19
+      "tokens": 19,
+      "action": "included"
     },
     {
       "id": "mem-db",
       "layer": "state_and_memory",
       "source": "decisions/db.md",
       "critical": true,
-      "tokens": 25
+      "tokens": 25,
+      "action": "included"
     },
     {
       "id": "kb-retry",
       "layer": "retrieved_knowledge",
       "source": "docs/errors.md#retry",
-      "tokens": 37
+      "tokens": 37,
+      "action": "included"
     },
     {
       "id": "kb-auth",
       "layer": "retrieved_knowledge",
       "source": "docs/auth.md",
-      "tokens": 25
+      "tokens": 25,
+      "action": "included"
     },
     {
       "id": "kb-forum",
       "layer": "retrieved_knowledge",
       "source": "web/forum-post",
-      "tokens": 39
+      "tokens": 39,
+      "action": "included"
     },
     {
       "id": "search_docs",
       "layer": "tool_definitions",
-      "tokens": 43
+      "tokens": 43,
+      "action": "included"
     },
     {
       "id": "h1",
       "layer": "conversation_history",
-      "tokens": 8
+      "tokens": 8,
+      "action": "included"
     },
     {
       "id": "h2",
       "layer": "conversation_history",
-      "tokens": 15
+      "tokens": 15,
+      "action": "included"
     },
     {
       "id": "user",
       "layer": "current_user_input",
       "source": "client.go",
       "critical": true,
-      "tokens": 27
+      "tokens": 27,
+      "action": "included"
     }
   ],
   "warnings": [
     "token counts are estimated, not exact"
   ],
   "input_hash": "sha256:e9434057049d9cdb",
-  "config_hash": "sha256:4017f7b423b0650c"
+  "config_hash": "sha256:94cc36012c404a92"
 }

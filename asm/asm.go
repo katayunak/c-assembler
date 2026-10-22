@@ -24,8 +24,13 @@ var Order = []string{
 	"current_user_input",
 }
 
-// Assemble checks the input, renders the six layers in order and builds a manifest.
-// A nil tokenizer means the estimator. Nothing is trimmed yet.
+// ErrOverflow means the input does not fit, even after dropping all it may drop.
+var ErrOverflow = errors.New("overflow: input does not fit the budget")
+
+// Assemble checks the input, drops items until it fits the budget,
+// renders the six layers in order and builds a manifest.
+// A nil tokenizer means the estimator.
+// On ErrOverflow the payload is empty but the manifest is filled.
 func Assemble(in Input, cfg Config, tok Tokenizer) (Payload, Manifest, error) {
 	if err := check(in, cfg); err != nil {
 		return Payload{}, Manifest{}, err
@@ -40,56 +45,89 @@ func Assemble(in Input, cfg Config, tok Tokenizer) (Payload, Manifest, error) {
 		Estimated:      !tok.Exact(),
 		AvailableInput: cfg.Available(),
 		ReservedOutput: cfg.ReservedOutput,
+		Status:         "ok",
 		InputHash:      hash(in),
 		ConfigHash:     hash(cfg),
 	}
-
-	// parts[i] holds the rendered pieces of layer i.
-	parts := make([][]string, len(Order))
-	add := func(layer int, id, source string, critical bool, text string) {
-		parts[layer] = append(parts[layer], text)
-		m.Items = append(m.Items, ItemRef{ID: id, Layer: Order[layer], Source: source, Critical: critical, Tokens: tok.Count(text)})
+	if m.Estimated {
+		m.Warnings = append(m.Warnings, "token counts are estimated, not exact")
 	}
-	for layer, items := range [][]Item{in.System, in.Memory, in.Knowledge} {
-		for _, it := range items {
-			head := "[" + it.ID + "]"
-			if it.Source != "" {
-				head += " " + it.Source
-			}
-			add(layer, it.ID, it.Source, it.Critical, head+"\n"+it.Text)
+
+	us := units(in)
+	for i, name := range Order {
+		if !slices.ContainsFunc(us, func(u unit) bool { return u.layer == i }) {
+			m.Missing = append(m.Missing, name)
 		}
 	}
-	for _, t := range in.Tools {
-		add(3, t.Name, "", false, renderTool(t))
-	}
-	for _, t := range in.History {
-		add(4, t.ID, "", false, t.Role+": "+t.Text)
-	}
-	add(5, "user", strings.Join(in.User.Attachments, ", "), true, renderUser(in.User))
+	order := dropOrder(us, in.User.Text, cfg.keepTurns())
 
+	// Render, and while something is over budget, drop more and render again.
 	var p Payload
+	for {
+		p, m.Layers, m.TotalTokens = render(us, tok)
+		layer, excess := overBy(m.Layers, m.TotalTokens, cfg)
+		if excess <= 0 {
+			break
+		}
+		if !drop(us, order, layer, excess, tok) {
+			where := "total"
+			if layer >= 0 {
+				where = Order[layer]
+			}
+			m.Warnings = append(m.Warnings, fmt.Sprintf("%s is %d tokens over budget and nothing is left to drop", where, excess))
+			m.Status, p = "overflow", Payload{}
+			break
+		}
+		m.Status = "trimmed"
+	}
+
+	for _, u := range us {
+		ref := ItemRef{ID: u.id, Layer: Order[u.layer], Source: strings.Join(u.sources, ", "), Critical: u.critical, Tokens: tok.Count(u.piece()), Action: "included"}
+		if u.dropped {
+			ref.Action, ref.Reason = "dropped", u.reason
+		}
+		m.Items = append(m.Items, ref)
+	}
+	if m.Status == "overflow" {
+		return p, m, ErrOverflow
+	}
+	return p, m, nil
+}
+
+// render builds every layer from the units that are not dropped, and counts tokens.
+func render(us []unit, tok Tokenizer) (Payload, []LayerStat, int) {
+	parts := make([][]string, len(Order))
+	for _, u := range us {
+		if !u.dropped {
+			parts[u.layer] = append(parts[u.layer], u.piece())
+		}
+	}
+	var p Payload
+	var stats []LayerStat
+	total := 0
 	for i, name := range Order {
 		body := ""
 		if len(parts[i]) > 0 {
 			body = escape(strings.Join(parts[i], "\n\n")) + "\n"
-		} else {
-			m.Missing = append(m.Missing, name)
 		}
 		text := "<" + name + ">\n" + body + "</" + name + ">"
 		n := tok.Count(text)
 		p.Layers = append(p.Layers, Layer{Name: name, Text: text})
-		m.Layers = append(m.Layers, LayerStat{Name: name, Items: len(parts[i]), Tokens: n})
-		m.TotalTokens += n
+		stats = append(stats, LayerStat{Name: name, Items: len(parts[i]), Tokens: n})
+		total += n
 	}
+	return p, stats, total
+}
 
-	m.OverBudget = m.TotalTokens > m.AvailableInput
-	if m.Estimated {
-		m.Warnings = append(m.Warnings, "token counts are estimated, not exact")
+// overBy finds the first layer over its cap, else checks the total.
+// It returns the layer (-1 for total) and how many tokens too many.
+func overBy(stats []LayerStat, total int, cfg Config) (int, int) {
+	for i, s := range stats {
+		if c := cfg.LayerBudgets[s.Name]; c > 0 && s.Tokens > c {
+			return i, s.Tokens - c
+		}
 	}
-	if m.OverBudget {
-		m.Warnings = append(m.Warnings, fmt.Sprintf("over budget by %d tokens; trimming is not built yet", m.TotalTokens-m.AvailableInput))
-	}
-	return p, m, nil
+	return -1, total - cfg.Available()
 }
 
 func renderTool(t Tool) string {
@@ -146,6 +184,16 @@ func check(in Input, cfg Config) error {
 	}
 	if cfg.ContextWindow > 0 && cfg.Available() <= 0 {
 		bad("config: no room left for input")
+	}
+	for _, name := range slices.Sorted(maps.Keys(cfg.LayerBudgets)) {
+		if !slices.Contains(Order, name) {
+			bad("config: layer_budgets: unknown layer %q", name)
+		} else if cfg.LayerBudgets[name] <= 0 {
+			bad("config: layer_budgets: %s must be > 0", name)
+		}
+	}
+	if cfg.KeepTurns < 0 {
+		bad("config: keep_turns must not be negative")
 	}
 
 	seen := map[string]bool{}

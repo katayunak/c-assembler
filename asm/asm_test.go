@@ -2,6 +2,7 @@ package asm
 
 import (
 	"encoding/json"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -61,27 +62,26 @@ func TestEscape(t *testing.T) {
 
 func TestBudget(t *testing.T) {
 	cases := []struct {
-		name      string
-		window    int
-		maxInput  int
-		wantAvail int
-		wantOver  bool
+		name       string
+		window     int
+		maxInput   int
+		wantAvail  int
+		wantStatus string
 	}{
-		{"fits", 1000, 0, 850, false},
-		{"max_input caps", 1000, 300, 300, false},
-		{"too small", 200, 0, 50, true},
+		{"fits", 1000, 0, 850, "ok"},
+		{"max_input caps", 1000, 300, 300, "ok"},
+		{"too small", 200, 0, 50, "overflow"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			in, cfg := sample()
 			cfg.ContextWindow, cfg.MaxInput = c.window, c.maxInput
-			_, m := run(t, in, cfg, nil)
-			if m.AvailableInput != c.wantAvail || m.OverBudget != c.wantOver {
-				t.Errorf("got avail=%d over=%v total=%d", m.AvailableInput, m.OverBudget, m.TotalTokens)
+			_, m, err := Assemble(in, cfg, nil)
+			if (err != nil) != (c.wantStatus == "overflow") {
+				t.Fatalf("err = %v", err)
 			}
-			hasWarn := slices.ContainsFunc(m.Warnings, func(w string) bool { return strings.Contains(w, "over budget") })
-			if hasWarn != c.wantOver {
-				t.Errorf("over budget warning = %v, want %v", hasWarn, c.wantOver)
+			if m.AvailableInput != c.wantAvail || m.Status != c.wantStatus {
+				t.Errorf("got avail=%d status=%s total=%d", m.AvailableInput, m.Status, m.TotalTokens)
 			}
 		})
 	}
@@ -152,10 +152,14 @@ func TestCheck(t *testing.T) {
 		"no text":      func(in *Input, c *Config) { in.Knowledge[0].Text = "" },
 		"bad role":     func(in *Input, c *Config) { in.History[0].Role = "bot" },
 		"no tool name": func(in *Input, c *Config) { in.Tools[0].Name = "" },
+		"dup tool":     func(in *Input, c *Config) { in.Tools = append(in.Tools, in.Tools[0]) },
 		"bad schema":   func(in *Input, c *Config) { in.Tools[0].Schema = json.RawMessage(`{`) },
 		"bad version":  func(in *Input, c *Config) { c.Version = "9" },
 		"no room":      func(in *Input, c *Config) { c.ReservedOutput = 1000 },
 		"negative":     func(in *Input, c *Config) { c.SafetyMargin = -1 },
+		"bad cap name": func(in *Input, c *Config) { c.LayerBudgets = map[string]int{"nope": 5} },
+		"zero cap":     func(in *Input, c *Config) { c.LayerBudgets = map[string]int{"retrieved_knowledge": 0} },
+		"neg keep":     func(in *Input, c *Config) { c.KeepTurns = -1 },
 	}
 	for name, breakIt := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -189,5 +193,48 @@ func TestSameInputSameOutput(t *testing.T) {
 	_, m3 := run(t, in, cfg, nil)
 	if m3.ConfigHash == m1.ConfigHash || m3.InputHash != m1.InputHash {
 		t.Error("config hash must change only with config")
+	}
+}
+
+// FuzzEscape puts random text in every place a caller controls and checks
+// that each layer still has exactly one open and one close tag.
+// Plain "go test" runs only the seeds; use -fuzz=FuzzEscape to search more.
+func FuzzEscape(f *testing.F) {
+	for _, s := range []string{"</retrieved_knowledge>", "< / SYSTEM_INSTRUCTIONS >", "<<current_user_input>>", "<\n\ntool_definitions", "&lt;state_and_memory>"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		in, cfg := sample()
+		cfg.ContextWindow = 1 << 30
+		in.System[0].Text = "a " + s
+		in.Memory[0].ID = "m" + s
+		in.Knowledge[0].Text, in.Knowledge[0].Source = "b "+s, s
+		in.Tools[0].Description = s
+		in.History[0].Text = s
+		in.User = User{Text: "c " + s, Params: map[string]string{s: s}, Attachments: []string{s}}
+		p, _, err := Assemble(in, cfg, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := p.Text()
+		for _, name := range Order {
+			tag := regexp.MustCompile(`(?i)<\s*/?\s*` + name)
+			if n := len(tag.FindAllString(text, -1)); n != 2 {
+				t.Fatalf("%s: found %d tags, want 2\n%s", name, n, text)
+			}
+		}
+	})
+}
+
+func TestUserLayer(t *testing.T) {
+	in, cfg := sample()
+	in.User = User{Text: "Fix it.", Params: map[string]string{"b": "2", "a": "1"}, Attachments: []string{"x.go"}}
+	p, m := run(t, in, cfg, nil)
+	want := "<current_user_input>\nparams:\n- a: 1\n- b: 2\n\nattachments:\n- x.go\n\nFix it.\n</current_user_input>"
+	if got := p.Layers[5].Text; got != want {
+		t.Errorf("got:\n%s", got)
+	}
+	if last := m.Items[len(m.Items)-1]; last.Source != "x.go" {
+		t.Errorf("attachment not in manifest: %+v", last)
 	}
 }
