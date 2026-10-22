@@ -1,0 +1,8 @@
+{
+  "version": "1",
+  "model": "claude-opus-5-5",
+  "context_window": 500,
+  "reserved_output": 200,
+  "safety_margin": 50,
+  "chars_per_token": 3.5
+}

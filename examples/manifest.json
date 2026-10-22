@@ -1,0 +1,114 @@
+{
+  "config_version": "1",
+  "model": "claude-opus-5-5",
+  "tokenizer": "estimate (3.5 chars/token)",
+  "estimated": true,
+  "layers": [
+    {
+      "name": "system_instructions",
+      "items": 2,
+      "tokens": 58
+    },
+    {
+      "name": "state_and_memory",
+      "items": 2,
+      "tokens": 56
+    },
+    {
+      "name": "retrieved_knowledge",
+      "items": 3,
+      "tokens": 117
+    },
+    {
+      "name": "tool_definitions",
+      "items": 1,
+      "tokens": 54
+    },
+    {
+      "name": "conversation_history",
+      "items": 2,
+      "tokens": 37
+    },
+    {
+      "name": "current_user_input",
+      "items": 1,
+      "tokens": 39
+    }
+  ],
+  "total_tokens": 361,
+  "available_input_tokens": 982000,
+  "reserved_output_tokens": 16000,
+  "over_budget": false,
+  "items": [
+    {
+      "id": "sys-role",
+      "layer": "system_instructions",
+      "critical": true,
+      "tokens": 17
+    },
+    {
+      "id": "sys-rules",
+      "layer": "system_instructions",
+      "critical": true,
+      "tokens": 28
+    },
+    {
+      "id": "mem-style",
+      "layer": "state_and_memory",
+      "source": "profile",
+      "tokens": 19
+    },
+    {
+      "id": "mem-db",
+      "layer": "state_and_memory",
+      "source": "decisions/db.md",
+      "critical": true,
+      "tokens": 25
+    },
+    {
+      "id": "kb-retry",
+      "layer": "retrieved_knowledge",
+      "source": "docs/errors.md#retry",
+      "tokens": 37
+    },
+    {
+      "id": "kb-auth",
+      "layer": "retrieved_knowledge",
+      "source": "docs/auth.md",
+      "tokens": 25
+    },
+    {
+      "id": "kb-forum",
+      "layer": "retrieved_knowledge",
+      "source": "web/forum-post",
+      "tokens": 39
+    },
+    {
+      "id": "search_docs",
+      "layer": "tool_definitions",
+      "tokens": 43
+    },
+    {
+      "id": "h1",
+      "layer": "conversation_history",
+      "tokens": 8
+    },
+    {
+      "id": "h2",
+      "layer": "conversation_history",
+      "tokens": 15
+    },
+    {
+      "id": "user",
+      "layer": "current_user_input",
+      "source": "client.go",
+      "critical": true,
+      "tokens": 27
+    }
+  ],
+  "warnings": [
+    "token counts are estimated, not exact"
+  ],
+  "input_hash": "sha256:e9434057049d9cdb",
+  "config_hash": "sha256:4017f7b423b0650c"
+}
